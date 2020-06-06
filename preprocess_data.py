@@ -97,8 +97,8 @@ def preprocess_dataset(inpath="Samples/", outpath="Preproc/", train_percentage=0
 
     if (True == already_split):
         print(" Data is already split into Train & Test",flush=True)
-        class_names = get_class_names(path=inpath+"Train/")   # get the names of the subdirectories
-        sampleset_subdirs = ["Train/","Test/"]
+        class_names = get_class_names(path=inpath+"train/")   # get the names of the subdirectories
+        sampleset_subdirs = ["train/","test/"]
     elif nosplit:
         print(" All files output to same directory",flush=True)
         class_names = get_class_names(path=inpath)   # get the names of the subdirectories
@@ -127,8 +127,8 @@ def preprocess_dataset(inpath="Samples/", outpath="Preproc/", train_percentage=0
         train_outpath = outpath
         test_outpath = outpath
     else:
-        train_outpath = outpath+"Train/"
-        test_outpath = outpath+"Test/"
+        train_outpath = outpath+"train/"
+        test_outpath = outpath+"test/"
     if not os.path.exists(outpath):
         os.mkdir( outpath );   # make a new directory for preproc'd files
         if not nosplit:

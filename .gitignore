@@ -5,3 +5,4 @@ __pycache__
 *.pyc
 *.hdf5
 nohup.out
+*.wav
