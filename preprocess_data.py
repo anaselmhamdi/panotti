@@ -14,6 +14,7 @@ from functools import partial
 from imageio import imwrite
 import multiprocessing as mp
 from utils.resolve_osx_aliases import resolve_osx_alias
+import time
 
 # this is either just the regular shape, or it returns a leading 1 for mono
 def get_canonical_shape(signal):
@@ -91,14 +92,14 @@ def convert_one_file(printevery, class_index, class_files, nb_classes, classname
 
 def preprocess_dataset(inpath="Samples/", outpath="Preproc/", train_percentage=0.8, resample=None, already_split=False,
     nosplit=False, sequential=False, mono=False, dur=None, clean=False, out_format='npy', mels=96, phase=False):
-
+    t1 = time.time()
     if (resample is not None):
         print(" Will be resampling at",resample,"Hz",flush=True)
 
     if (True == already_split):
         print(" Data is already split into Train & Test",flush=True)
-        class_names = get_class_names(path=inpath+"train/")   # get the names of the subdirectories
-        sampleset_subdirs = ["train/","test/"]
+        class_names = get_class_names(path=inpath+"Train/")   # get the names of the subdirectories
+        sampleset_subdirs = ["Train/","Test/"]
     elif nosplit:
         print(" All files output to same directory",flush=True)
         class_names = get_class_names(path=inpath)   # get the names of the subdirectories
@@ -127,8 +128,8 @@ def preprocess_dataset(inpath="Samples/", outpath="Preproc/", train_percentage=0
         train_outpath = outpath
         test_outpath = outpath
     else:
-        train_outpath = outpath+"train/"
-        test_outpath = outpath+"test/"
+        train_outpath = outpath+"Train/"
+        test_outpath = outpath+"Test/"
     if not os.path.exists(outpath):
         os.mkdir( outpath );   # make a new directory for preproc'd files
         if not nosplit:
@@ -182,7 +183,7 @@ def preprocess_dataset(inpath="Samples/", outpath="Preproc/", train_percentage=0
                 pool.map(partial(convert_one_file, printevery, class_index, class_files, nb_classes, classname, n_load, dirname,
                     resample, mono, already_split, nosplit, n_train, outpath, subdir, max_shape, clean, out_format, mels, phase), file_indices)
                 pool.close() # shut down the pool
-
+    print('Preproc took:', round((time.time()-t1)/60))
 
     print("")    # at the very end, newline
     return
