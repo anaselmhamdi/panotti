@@ -131,3 +131,8 @@ serial counterpart, it breaks things. So we leave the serial one uncompiled and 
 <hr>
 -- [@drscotthawley](https://drscotthawley.github.io)
 
+## NEW CLI PREDICT W/ YOUTUBE URL
+
+`python3 predict_class.py -f https://www.youtube.com/watch?v=6RPAKnruj9s`  
+  
+Writes a json file with the results.

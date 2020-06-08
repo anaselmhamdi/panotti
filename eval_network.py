@@ -82,10 +82,11 @@ def eval_network(weights_file="weights.hdf5", classpath="Preproc/Test/", batch_s
     tpr = dict()
     roc_auc = dict()
     for i in range(n_classes):
-        fpr[i], tpr[i], _ = roc_curve(Y_test[:, i], y_scores[:, i])
+        Y_true = np.where(Y_test[:, i] > 0.5, 1, 0)
+        fpr[i], tpr[i], _ = roc_curve(Y_true, y_scores[:, i])
         roc_auc[i] = auc(fpr[i], tpr[i])
-
-    auc_score = roc_auc_score(Y_test, y_scores)
+    Y_true =  np.where(Y_test > 0.5, 1, 0)
+    auc_score = roc_auc_score(Y_true, y_scores)
     print("Global AUC = ",auc_score)
 
     print("\nDrawing ROC curves...")

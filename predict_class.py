@@ -6,7 +6,13 @@ from __future__ import print_function
 import numpy as np
 import librosa
 import os
-from os.path import isfile
+import pandas as pd
+from os.path import isfile,join
+import math
+import tempfile
+import youtube_dl
+import time
+from pydub import AudioSegment
 from panotti.models import *
 from panotti.datautils import *
 
@@ -18,11 +24,38 @@ def get_canonical_shape(signal):
     else:
         return signal.shape
 
+class MyLogger(object):
+    def debug(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        print(msg)
+
+def my_hook(d):
+    if d['status'] == 'finished':
+        print('Done downloading, now converting ...')
+
+def split_audio(mypath, outdir,chunk_second=10):
+    paths = []
+    sound = AudioSegment.from_file(mypath)
+    d = math.ceil(sound.duration_seconds)
+    for i in range(1 + (d // chunk_second)):
+        newAudio = sound[i*chunk_second*1000:(i+1)*chunk_second*1000]
+        path = f'{outdir}{mypath.split("/")[-1].replace(".wav","")}-part{i+1}.wav'
+        newAudio.export(path, format="wav")
+        paths.append(path)
+    return [{
+        "path":path,
+        "start_time":i*chunk_second, 
+        "end_time":(i+1)*chunk_second if (i+1)*chunk_second < sound.duration_seconds else round(sound.duration_seconds),
+        "minute_timestamp_start":time.strftime("%H:%M:%S", time.gmtime(i*chunk_second))
+        } for i, path in enumerate(paths)]
 
 def predict_one(signal, sr, model, expected_melgram_shape):# class_names, model)#, weights_file="weights.hdf5"):
     X = make_layered_melgram(signal,sr)
-    print("signal.shape, melgram_shape, sr = ",signal.shape, X.shape, sr)
-
     if (X.shape[1:] != expected_melgram_shape):   # resize if necessary, pad with zeros
         Xnew = np.zeros([1]+list(expected_melgram_shape))
         min1 = min(  Xnew.shape[1], X.shape[1]  )
@@ -34,9 +67,13 @@ def predict_one(signal, sr, model, expected_melgram_shape):# class_names, model)
 
 
 def main(args):
+    t_start = time.time()
     np.random.seed(1)
     weights_file=args.weights
     dur = args.dur
+    file = args.file
+    print(file)
+    # folder = args.folder
     resample = args.resample
     mono = args.mono
 
@@ -46,48 +83,57 @@ def main(args):
         print("No weights file found.  Aborting")
         exit(1)
 
-    #model.summary()
-
-    #TODO: Keras load_models is spewing warnings about not having been compiled. we can ignore those,
-    #   how to turn them off?  Answer: can invoke with python -W ignore ...
-
-    #class_names = get_class_names(args.classpath) # now encoding names in model weights file
     nb_classes = len(class_names)
-    print(nb_classes," classes to choose from: ",class_names)
     expected_melgram_shape = model.layers[0].input_shape[1:]
-    print("Expected_melgram_shape = ",expected_melgram_shape)
     file_count = 0
-    json_file = open("data.json", "w")
-    json_file.write('{\n"items":[')
-
+    # json_file = open("data.json", "w")
+    # json_file.write('{\n"items":[')
     idnum = 0
-    numfiles = len(args.file)
+    filepaths = []
+    if file:
+        tmpdir1 = tempfile.TemporaryDirectory()
+        newfp = f"{tmpdir1.name}/dl_file.wav"
+        if "https://www.youtube" in file:
+            print('Found Youtube Link, launching download')
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors':[{"key":"FFmpegExtractAudio","preferredcodec":"wav"}],
+                'logger': MyLogger(),
+                'progress_hooks': [my_hook],
+                'outtmpl':newfp
+            }
+            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([file])
+            # subprocess.call(['youtube-dl', '-f', '-bestaudio', '--extract-audio',
+            #  '--audio-format',"wav","-audio-quality","0",
+            #  "-o",newfp, file])
+            file = newfp
+        sound = AudioSegment.from_file(file)
+        print(f"Audio file if {round(sound.duration_seconds)} seconds long")
+        if dur < sound.duration_seconds:
+            tmpdir = tempfile.TemporaryDirectory()
+            print(f'Splitting audios into {dur} seconds clips.')
+            d = math.ceil(sound.duration_seconds)
+            filepaths = split_audio(file, tmpdir.name, dur)
+        else:
+            filepaths = [file]
+    numfiles = len(filepaths)
     print("Reading",numfiles,"files")
-    for infile in args.file:
+    for d in filepaths:
+        infile = d['path']
         if os.path.isfile(infile):
             file_count += 1
-            print("File",infile,":",end="")
-
             signal, sr = load_audio(infile, mono=mono, sr=resample)
-
             y_proba = predict_one(signal, sr, model, expected_melgram_shape) # class_names, model, weights_file=args.weights)
-
-            for i in range(nb_classes):
-                print( class_names[i],": ",y_proba[i],", ",end="",sep="")
-            answer = class_names[ np.argmax(y_proba)]
-            print("--> ANSWER:", class_names[ np.argmax(y_proba)])
-            outstr = '\n  {\n   "id": "'+str(idnum)+'",\n      "name":"'+infile+'",\n      "tags":[\n   "'+answer+'"]\n  }'
-            if (idnum < numfiles-1):
-                outstr += ','
-            json_file.write(outstr)
-            json_file.flush()     # keep json file up to date
+            argmax = np.argmax(y_proba)
+            d['label'] = class_names[argmax]
+            d['proba'] = y_proba[argmax]
+            del d['path']
         else:
             pass #print(" *** File",infile,"does not exist.  Skipping.")
         idnum += 1
-
-    json_file.write("]\n}\n")
-    json_file.close()
-
+    print(f'The process took {round(time.time()-t_start)} seconds')
+    pd.DataFrame(filepaths).to_json('results.json')
     return
 
 
@@ -96,12 +142,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="predicts which class file(s) belong(s) to")
     parser.add_argument('-w', '--weights', #nargs=1, type=argparse.FileType('r'),
         help='weights file in hdf5 format', default="weights.hdf5")
-    #parser.add_argument('-c', '--classpath', #type=argparse.string, help='directory with list of classes', default="Preproc/Test/")
     parser.add_argument("-m", "--mono", help="convert input audio to mono",action="store_true")
     parser.add_argument("-r", "--resample", type=int, default=44100, help="convert input audio to mono")
-    parser.add_argument('-d', "--dur",  type=float, default=None,   help='Max duration (in seconds) of each clip')
-
-    parser.add_argument('file', help="file(s) to classify", nargs='+')
+    parser.add_argument('-d', "--dur",  type=float, default=10,   help='Max duration (in seconds) of each clip')
+    parser.add_argument('-f','--file',type=str,required=True, help="Filepath or youtube URL")
     args = parser.parse_args()
 
     main(args)
+ 
