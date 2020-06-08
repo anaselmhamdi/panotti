@@ -39,6 +39,13 @@ Not everything is required, here's a overview:
 
 `pip install -r requirements.txt`
 
+## NEW CLI PREDICT W/ YOUTUBE URL
+
+`python3 predict_class.py -f https://www.youtube.com/watch?v=dc28iyb-GQM`  
+
+Splits file or youtube url into 10s clips and classifies them one by one.
+Took 28 seconds to tag this video
+Writes a json file with the results.
 
 ## Demo
 I'm not shipping this with any audio but you can generate some for the 'fake binaural' example (requires sox):
@@ -130,9 +137,3 @@ serial counterpart, it breaks things. So we leave the serial one uncompiled and 
 
 <hr>
 -- [@drscotthawley](https://drscotthawley.github.io)
-
-## NEW CLI PREDICT W/ YOUTUBE URL
-
-`python3 predict_class.py -f https://www.youtube.com/watch?v=6RPAKnruj9s`  
-  
-Writes a json file with the results.
