@@ -13,3 +13,5 @@ pypandoc>=1.4
 scikit_learn>=0.19.1
 winshell>=0.6
 scikit-image>=0.14.2
+youtube_dl>===2020.6.6
+pydub==0.24.1
